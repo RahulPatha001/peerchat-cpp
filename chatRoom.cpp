@@ -22,6 +22,44 @@ void Room::deliver(participantPtr participant, Message &message){
     }
 }
 
+void Session::async_read(){
+    auto self(shared_from_this());
+    boost::asio::async_read_until(clientSocket, buffer, "\n", [this, self](boost::system::error_code ec, std::size_t bytes_transferred){
+        if(!ec){
+            std::string data(boost::asio::buffers_begin(buffer.data()),
+        boost::asio::buffers_begin(buffer.data())+bytes_transferred);
+
+        buffer.consume(bytes_transferred);
+        std::cout<<"Recived:" <<data<<std::endl;
+        Message message(data);
+
+        deliver(message);
+
+        async_read();
+
+        }else{
+            room.leave(shared_from_this());
+            if(ec == boost::asio::error::eof){
+                std::cout<<"Connection closed by peer"<<std::endl;
+            }else{
+                std::cout<<"Read error: "<<ec.message()<<std::endl;
+            }
+        }
+    });
+}
+
+
+void Session::async_write(std::string messageBody, size_t messageLength){
+    auto write_handler = [&](boost::system::error_code ec, std::size_t bytes_transferred){
+        if(!ec){
+            std::cout<<"Data is written to the socket"<<std::endl;
+        }else{
+            std::cerr<<"Write error: "<<ec.message()<<std::endl;
+        }
+    };
+    boost::asio::async_write(clientSocket, boost::asio::buffer(messageBody, messageLength), write_handler);
+}
+
 void Session::write(Message &message){
     messageQueue.push_back(message);
     while (messageQueue.size() != 0)
@@ -73,10 +111,17 @@ int main(int argc, char*argv[]){
             return 1;
         }
         Room room;
+        boost::asio::io_context io_context;
+        tcp::endpoint endpoint(tcp::v4(), atoi(argv[1]));
+        tcp::acceptor acceptor(io_context, endpoint);
+        accept_connection(io_context, argv[1], acceptor, room, endpoint);
+        io_context.run();
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what() << '\n';
+        std::cerr <<"Exception occured " << e.what() << '\n';
     }
+
+    return 0;
     
 }
