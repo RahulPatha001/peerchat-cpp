@@ -40,6 +40,7 @@ using boost::asio::ip::tcp;
             void start();
             void deliver(Message &message);
             void write(Message &message);
+            void async_read();
             void async_write(std::string messageBody, size_t messageLength);
         private:
             tcp::socket clientSocket;
